@@ -113,3 +113,96 @@ def process_core_inflation_data(data_core):
     data_core = data_core.sort_values(['VAREGR','date']).reset_index(drop=True)
 
     return data_core
+
+import re
+
+def get_4digit_categories(pris111):
+    """
+    Finder alle VAREGR-kategorier på 4-cifret niveau (fx '01.1.1.1 Rice').
+    """
+
+    # a. hent alle niveauer af VAREGR
+    levels = pris111.variable_levels('VAREGR', language='en')
+
+    # b. match tekster på formen XX.X.X.X (fire tal adskilt af punktum)
+    mask = levels['text'].str.match(r'^\d{2}\.\d+\.\d+\.\d+\s')
+
+    return levels[mask]
+
+
+def load_disaggregated_inflation(pris111, categories_4digit):
+    """
+    Henter 12-måneders inflation for alle 4-cifrede produktkategorier.
+    """
+
+    # a. byg parametrene -- brug listen af id'er som values
+    params = pris111.define_base_params(language='en')
+    params['variables'][0]['values'] = categories_4digit['id'].tolist()  # VAREGR
+    params['variables'][1]['values'] = ['300']                            # ENHED: 12-month pct. change
+    params['variables'][2]['values'] = ['*']                              # Tid
+
+    # b. hent data
+    data_disagg = pris111.get_data(params=params)
+
+    # c. dato-variabel og numerisk type (samme som tidligere)
+    data_disagg['date'] = pd.to_datetime(data_disagg['TID'], format='%YM%m')
+    data_disagg['INDHOLD'] = pd.to_numeric(data_disagg['INDHOLD'], errors='coerce')
+
+    return data_disagg
+
+
+def compute_percentiles(data_disagg):
+    """
+    Beregner 25., 50. og 75. percentil af 12-måneders inflation på tværs
+    af kategorier, for hver måned.
+    """
+    percentiles = data_disagg.groupby('date')['INDHOLD'].agg(
+        p25=lambda x: x.quantile(0.25),
+        p50=lambda x: x.quantile(0.50),
+        p75=lambda x: x.quantile(0.75)
+    ).reset_index()
+
+    return percentiles
+
+def load_disaggregated_index(pris111, categories_4digit):
+    """
+    Henter selve prisindekset (niveau, ikke inflation) for de 4-cifrede
+    kategorier -- bruges til at beregne ændringen fra aug 2020 til aug 2025.
+    """
+
+    params = pris111.define_base_params(language='en')
+    params['variables'][0]['values'] = categories_4digit['id'].tolist()  # VAREGR
+    params['variables'][1]['values'] = ['100']                            # ENHED: Index
+    params['variables'][2]['values'] = ['*']                              # Tid
+
+    data_idx = pris111.get_data(params=params)
+
+    data_idx['date'] = pd.to_datetime(data_idx['TID'], format='%YM%m')
+    data_idx['INDHOLD'] = pd.to_numeric(data_idx['INDHOLD'], errors='coerce')
+
+    return data_idx
+
+
+def compute_pct_change_period(data_idx, start='2020-08-01', end='2025-08-01'):
+    """
+    Beregner den procentvise ændring i prisindeks for hver kategori
+    mellem start og end.
+    """
+
+    # a. værdier ved start- og slutdato, pr. kategori
+    start_vals = data_idx[data_idx['date'] == start].set_index('VAREGR')['INDHOLD']
+    end_vals = data_idx[data_idx['date'] == end].set_index('VAREGR')['INDHOLD']
+
+    # b. procentvis ændring
+    pct_change = (end_vals / start_vals - 1) * 100
+
+    return pct_change.dropna()
+
+def top_bottom_categories(pct_change_period, n=10):
+    """
+    Finder de n kategorier med størst og mindst prisstigning.
+    """
+    top = pct_change_period.sort_values(ascending=False).head(n)
+    bottom = pct_change_period.sort_values(ascending=True).head(n)
+
+    return top, bottom
