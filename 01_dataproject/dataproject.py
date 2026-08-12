@@ -1,5 +1,8 @@
 import numpy as np
 from dstapi import DstApi
+import pandas as pd
+
+
 def load_data():
     """
     load data function
@@ -91,5 +94,22 @@ def load_core_inflation_data():
 
     # c. hent data
     data_core = pris111.get_data(params=params)
+
+    return data_core
+
+
+def process_core_inflation_data(data_core):
+    """
+    Laver dato-variabel og konverterer INDHOLD til float.
+    """
+
+    # a. dato-variabel
+    data_core['date'] = pd.to_datetime(data_core['TID'], format='%YM%m')
+
+    # b. sørg for numerisk type (samme fejl som med PRIS113 tidligere)
+    data_core['INDHOLD'] = pd.to_numeric(data_core['INDHOLD'], errors='coerce')
+
+    # c. sortér kronologisk inden for hver varegruppe
+    data_core = data_core.sort_values(['VAREGR','date']).reset_index(drop=True)
 
     return data_core
