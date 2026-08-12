@@ -33,34 +33,34 @@ def process_data(data):
     return data
 def kappa(k, alpha):
     """
-    Vægtfunktion til instantaneous inflation, kappa(k,alpha).
-    k kan være et enkelt tal eller et array af heltal fra 0 til 11.
+    Weight function for instantaneous inflation, kappa(k, alpha).
+    k can be a single number or an array of integers from 0 to 11.
     """
 
-    # a. sørg for at k er et array, så funktionen virker vektoriseret
+    # a. ensure that k is an array so the function works vectorized
     k = np.asarray(k, dtype=float)
 
-    # b. nævneren summeres altid over alle 12 mulige k-værdier (0 til 11)
+    # b. the denominator always sums over all 12 possible k-values (0 to 11)
     all_k = np.arange(12)
     denominator = np.sum((12 - all_k)**alpha)
 
-    # c. selve vægten, skaleret med 12 (se opgavetekstens formel)
+    # c. the weight itself, scaled by 12 (see the formula in the assignment)
     return (12 - k)**alpha / denominator * 12
 
 
 def instantaneous_inflation(window, alpha):
     """
-    Beregner pi^{12,alpha}_t for ét rullende vindue af 12 månedlige
-    inflationsrater. Bruges sammen med .rolling(12).apply(...).
+    Computes pi^{12, alpha}_t for one rolling window of 12 monthly
+    inflation rates. Used together with .rolling(12).apply(...).
 
-    window[0] er den ældste måned i vinduet (t-11), window[-1] er den
-    nyeste (t) -- dvs. k=11 svarer til window[0], k=0 svarer til window[-1].
+    window[0] is the oldest month in the window (t-11), while window[-1]
+    is the newest (t) -- so k=11 corresponds to window[0] and k=0 to window[-1].
     """
 
-    # a. byg k i samme rækkefølge som vinduet: 11,10,...,1,0
+    # a. construct k in the same order as the window: 11, 10, ..., 1, 0
     k = np.arange(11, -1, -1)
 
-    # b. hent tilhørende vægte
+    # b. obtain the corresponding weights
     w = kappa(k, alpha)
 
     # c. det vejede produkt
@@ -69,7 +69,7 @@ def instantaneous_inflation(window, alpha):
 
 def add_instantaneous_inflation(data, alphas=[0,1,2,3]):
     """
-    Tilføjer en kolonne pi_12_alpha{a} til data for hver alpha i alphas.
+    Adds a pi_12_alpha{a} column to the data for each alpha in alphas.
     """
     for a in alphas:
         data[f'pi_12_alpha{a}'] = data['inflation_mom'].rolling(12).apply(
@@ -79,20 +79,20 @@ def add_instantaneous_inflation(data, alphas=[0,1,2,3]):
 
 def load_core_inflation_data():
     """
-    Henter 12-måneders inflation for total-CPI, CPI ekskl. energi, og
-    kerneinflation (ekskl. energi og uforarbejdede fødevarer) fra PRIS111.
+    Loads 12-month inflation for total CPI, CPI excluding energy, and
+    core inflation (excluding energy and unprocessed food) from PRIS111.
     """
 
-    # a. opret forbindelse til tabellen
+    # a. connect to the table
     pris111 = DstApi('PRIS111')
 
-    # b. byg parametrene
+    # b. build the parameters
     params = pris111.define_base_params(language='en')
     params['variables'][0]['values'] = ['000000', '151000', '141000']  # VAREGR
     params['variables'][1]['values'] = ['300']                          # ENHED: 12-month pct. change
-    params['variables'][2]['values'] = ['*']                            # Tid: alle måneder
+    params['variables'][2]['values'] = ['*']                            # Time: all months
 
-    # c. hent data
+    # c. load the data
     data_core = pris111.get_data(params=params)
 
     return data_core
@@ -100,16 +100,16 @@ def load_core_inflation_data():
 
 def process_core_inflation_data(data_core):
     """
-    Laver dato-variabel og konverterer INDHOLD til float.
+    Creates a date variable and converts INDHOLD to float.
     """
 
-    # a. dato-variabel
+    # a. date variable
     data_core['date'] = pd.to_datetime(data_core['TID'], format='%YM%m')
 
-    # b. sørg for numerisk type (samme fejl som med PRIS113 tidligere)
+    # b. ensure numeric type (the same issue as with PRIS113 earlier)
     data_core['INDHOLD'] = pd.to_numeric(data_core['INDHOLD'], errors='coerce')
 
-    # c. sortér kronologisk inden for hver varegruppe
+    # c. sort chronologically within each commodity group
     data_core = data_core.sort_values(['VAREGR','date']).reset_index(drop=True)
 
     return data_core
@@ -118,13 +118,13 @@ import re
 
 def get_4digit_categories(pris111):
     """
-    Finder alle VAREGR-kategorier på 4-cifret niveau (fx '01.1.1.1 Rice').
+    Finds all VAREGR categories at the four-digit level (e.g. '01.1.1.1 Rice').
     """
 
-    # a. hent alle niveauer af VAREGR
+    # a. load all VAREGR levels
     levels = pris111.variable_levels('VAREGR', language='en')
 
-    # b. match tekster på formen XX.X.X.X (fire tal adskilt af punktum)
+    # b. match labels of the form XX.X.X.X (four numbers separated by dots)
     mask = levels['text'].str.match(r'^\d{2}\.\d+\.\d+\.\d+\s')
 
     return levels[mask]
@@ -132,19 +132,19 @@ def get_4digit_categories(pris111):
 
 def load_disaggregated_inflation(pris111, categories_4digit):
     """
-    Henter 12-måneders inflation for alle 4-cifrede produktkategorier.
+    Loads 12-month inflation for all four-digit product categories.
     """
 
-    # a. byg parametrene -- brug listen af id'er som values
+    # a. build the parameters -- use the list of IDs as values
     params = pris111.define_base_params(language='en')
     params['variables'][0]['values'] = categories_4digit['id'].tolist()  # VAREGR
     params['variables'][1]['values'] = ['300']                            # ENHED: 12-month pct. change
     params['variables'][2]['values'] = ['*']                              # Tid
 
-    # b. hent data
+    # b. load the data
     data_disagg = pris111.get_data(params=params)
 
-    # c. dato-variabel og numerisk type (samme som tidligere)
+    # c. date variable and numeric type (as above)
     data_disagg['date'] = pd.to_datetime(data_disagg['TID'], format='%YM%m')
     data_disagg['INDHOLD'] = pd.to_numeric(data_disagg['INDHOLD'], errors='coerce')
 
@@ -153,8 +153,8 @@ def load_disaggregated_inflation(pris111, categories_4digit):
 
 def compute_percentiles(data_disagg):
     """
-    Beregner 25., 50. og 75. percentil af 12-måneders inflation på tværs
-    af kategorier, for hver måned.
+    Computes the 25th, 50th, and 75th percentiles of 12-month inflation
+    across categories for each month.
     """
     percentiles = data_disagg.groupby('date')['INDHOLD'].agg(
         p25=lambda x: x.quantile(0.25),
@@ -166,8 +166,8 @@ def compute_percentiles(data_disagg):
 
 def load_disaggregated_index(pris111, categories_4digit):
     """
-    Henter selve prisindekset (niveau, ikke inflation) for de 4-cifrede
-    kategorier -- bruges til at beregne ændringen fra aug 2020 til aug 2025.
+    Loads the price index itself (the level, not inflation) for the four-digit
+    categories -- used to compute the change from August 2020 to August 2025.
     """
 
     params = pris111.define_base_params(language='en')
@@ -185,22 +185,22 @@ def load_disaggregated_index(pris111, categories_4digit):
 
 def compute_pct_change_period(data_idx, start='2020-08-01', end='2025-08-01'):
     """
-    Beregner den procentvise ændring i prisindeks for hver kategori
+    Computes the percentage change in the price index for each category
     mellem start og end.
     """
 
-    # a. værdier ved start- og slutdato, pr. kategori
+    # a. values at the start and end dates, by category
     start_vals = data_idx[data_idx['date'] == start].set_index('VAREGR')['INDHOLD']
     end_vals = data_idx[data_idx['date'] == end].set_index('VAREGR')['INDHOLD']
 
-    # b. procentvis ændring
+    # b. percentage change
     pct_change = (end_vals / start_vals - 1) * 100
 
     return pct_change.dropna()
 
 def top_bottom_categories(pct_change_period, n=10):
     """
-    Finder de n kategorier med størst og mindst prisstigning.
+    Finds the n categories with the largest and smallest price increases.
     """
     top = pct_change_period.sort_values(ascending=False).head(n)
     bottom = pct_change_period.sort_values(ascending=True).head(n)
