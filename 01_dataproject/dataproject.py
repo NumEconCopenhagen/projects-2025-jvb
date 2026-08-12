@@ -28,4 +28,3 @@ def process_data(data):
         data[f'log_{k}'] = np.log(v)
 
     return data
-print("Data processing module loaded successfully.")
