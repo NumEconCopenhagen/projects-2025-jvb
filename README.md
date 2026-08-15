@@ -2,7 +2,7 @@
 
 **Group members:**
 - A
-- B
+- Villads Nolsøe (zjv715)
 - C
 
 **This repository contains:***
