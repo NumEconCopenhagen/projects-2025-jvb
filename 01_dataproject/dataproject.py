@@ -7,10 +7,10 @@ def load_data():
     load data function
     """
 
-    # a. allocate data container
+    #allocation of data container
     data = {}
 
-    # b. fill
+    #fill
     data['GDP'] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
 
     return data
@@ -21,55 +21,57 @@ def process_data(data):
     process data function
     """
 
-    # a. verify data
+    #verify data
     assert 'GDP' in data, "Data must contain 'GDP' key"
 
-    # b. take log
+    #take log
     for k in ['GDP']:
         v = data[k]
         data[f'log_{k}'] = np.log(v)
 
     return data
 
-#task 2 
+# Task 2
 
-#Task 2.1-2.2
+# Task 2.1-2.2
 
 class IncomeModelClass:
-    """Life-cycle model of income."""
+    """ Life-cycle income model used in Task 2. """
 
     def __init__(self, seed=1986):
-        """Setup model parameters."""
+        """ set up parameters for the model and simulation """
 
         #simulation numbers
         self.N = 50_000
         self.seed = seed
         self.ages = np.arange(18, 66)
 
-        #education numbers
+        #education
         self.p_education = np.array([0.40, 0.35, 0.25])
         self.S = np.array([1, 3, 5])
         self.h0 = np.array([1.00, 1.20, 1.55])
         self.Delta = np.array([0.010, 0.020, 0.030])
 
-        #human capital numbers
+        #human capital
         self.delta = 0.06
         self.sigma_psi = 0.10
 
-        #labor market numbers 
+        #labor market
         self.lam = 0.60
         self.sigma = 0.05
 
-        #income numbers
+        #income
         self.y_SU = 0.45
         self.rho = 0.60
         self.y_floor = 0.35
     
     def simulate(self):
+        "simulation of the model"
 
+        #random number generator
         rng = np.random.default_rng(self.seed)
 
-        #find education
+        #draw education
         education = rng.choice(
             3,
             size=self.N,
@@ -78,32 +80,29 @@ class IncomeModelClass:
 
         self.education = education
 
-        #years of education
+        #find labor-market entry
         self.years_education = self.S[self.education] 
-
-        #age when entering labor market
         self.age_entry = 18 + self.years_education
 
-        # d. allocate employment array
-        # d. setup employment
+        #setup employment
         T = len(self.ages)
         self.employed = np.empty((self.N,T))
 
-        # e. simulate employment
+        #simulation of employment
         for i in range(self.N):
 
             for t,age in enumerate(self.ages):
 
-                # i. in education or just entered labor market
+                #in education or just entered labor market
                 if age <= self.age_entry[i]:
                     self.employed[i,t] = 0
 
-                # ii. already on labor market
+                #already on labor market
                 else:
 
                     draw = rng.random()
 
-                    # unemployed last year
+                    #unemployed last year
                     if self.employed[i,t-1] == 0:
 
                         if draw < self.lam:
@@ -111,7 +110,7 @@ class IncomeModelClass:
                         else:
                             self.employed[i,t] = 0
 
-                    # employed last year
+                    #employed last year
                     else:
 
                         if draw < self.sigma:
@@ -119,22 +118,22 @@ class IncomeModelClass:
                         else:
                             self.employed[i,t] = 1
 
-        # f. setup human capital
+        #setup of human capital
         self.human_capital = np.empty((self.N,T))
 
-        # g. simulate human capital
+        #simulation of capital
         for i in range(self.N):
 
             for t,age in enumerate(self.ages):
 
-                # i. education and labor market entry
+                #education and labor market entry
                 if age <= self.age_entry[i]:
 
                     self.human_capital[i,t] = (
                         self.h0[self.education[i]]
                     )
 
-                # ii. after labor market entry
+                #after labor market entry
                 else:
 
                     psi = rng.lognormal(
@@ -142,7 +141,7 @@ class IncomeModelClass:
                         self.sigma_psi
                     )
 
-                    # employed last year
+                    #employed last year
                     if self.employed[i,t-1] == 1:
 
                         self.human_capital[i,t] = (
@@ -151,7 +150,7 @@ class IncomeModelClass:
                             * psi
                         )
 
-                    # unemployed last year
+                    #unemployed last year
                     else:
 
                         self.human_capital[i,t] = (
@@ -160,10 +159,10 @@ class IncomeModelClass:
                             * psi
                         )
 
-        # h. setup income
+        #income setup
         self.income = np.empty((self.N,T))
 
-        # i. simulate income
+        #simulation of income
         for i in range(self.N):
 
                     ever_employed = 0
@@ -171,12 +170,12 @@ class IncomeModelClass:
 
                     for t,age in enumerate(self.ages):
 
-                        # i. in education
+                        #in education
                         if age < self.age_entry[i]:
 
                             self.income[i,t] = self.y_SU
 
-                        # ii. employed
+                        #employed
                         elif self.employed[i,t] == 1:
 
                             self.income[i,t] = self.human_capital[i,t]
@@ -184,7 +183,7 @@ class IncomeModelClass:
                             last_job_income = self.income[i,t]
                             ever_employed = 1
 
-                        # iii. unemployed
+                        #unemployed
                         else:
 
                             if ever_employed == 1:
@@ -192,3 +191,37 @@ class IncomeModelClass:
 
                             else:
                                 self.income[i,t] = self.y_floor
+
+# Task 2.3
+
+def gini(x):
+    """ calculate the Gini coefficient
+
+    Args:
+
+        x (ndarray): vector of incomes
+
+    Returns:
+
+        gini (float): Gini coefficient
+
+    """
+
+    #sort incomes
+    x = np.sort(x)
+
+    #calculation of coefficient
+    N = len(x)
+    weighted_sum = 0
+    total_income = 0
+
+    for i in range(N):
+        weighted_sum += (i+1)*x[i]
+        total_income += x[i]
+
+    gini = (
+        2*weighted_sum/(N*total_income)
+        - (N+1)/N
+    )
+
+    return gini
