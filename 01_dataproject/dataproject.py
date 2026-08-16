@@ -192,6 +192,28 @@ class IncomeModelClass:
                             else:
                                 self.income[i,t] = self.y_floor
 
+def run_scenario(seed=1986, **overrides):
+    """ create and simulate an IncomeModelClass model, with optional
+    parameter overrides applied after initialization
+
+    Args:
+
+        seed (int): random seed
+        **overrides: parameter values to override, e.g. sigma_psi=0.0
+
+    Returns:
+
+        model (IncomeModelClass): the simulated model
+
+    """
+
+    model = IncomeModelClass(seed=seed)
+    for key, val in overrides.items():
+        setattr(model, key, val)
+    model.simulate()
+
+    return model
+
 # Task 2.3
 
 def lorenz_curve(x):
