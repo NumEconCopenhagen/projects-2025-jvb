@@ -64,6 +64,10 @@ class IncomeModelClass:
         self.y_SU = 0.45
         self.rho = 0.60
         self.y_floor = 0.35
+
+        #health/displacement risk (Task 2.5 extension, off by default)
+        self.p_shock = 0.0     # probability of a permanent negative human capital shock each period
+        self.shock_size = 0.50 # human capital multiplier if a shock hits
     
     def simulate(self):
         "simulation of the model"
@@ -158,6 +162,17 @@ class IncomeModelClass:
                             * (1 - self.delta)
                             * psi
                         )
+                        #additional idiosyncratic risk: a permanent negative shock to
+                    #human capital (e.g. disability, displacement), independent of
+                    #employment status (Task 2.5 extension). Guarded so that with the
+                    #default p_shock=0.0 no random draw happens and all earlier results
+                    #(2.2-2.4) stay exactly reproducible.
+                    if self.p_shock > 0 and rng.random() < self.p_shock:
+                        self.human_capital[i,t] *= self.shock_size
+                        
+
+
+                    
 
         #income setup
         self.income = np.empty((self.N,T))
@@ -192,7 +207,55 @@ class IncomeModelClass:
                             else:
                                 self.income[i,t] = self.y_floor
 
+def run_scenario(seed=1986, **overrides):
+    """ create and simulate an IncomeModelClass model, with optional
+    parameter overrides applied after initialization
+
+    Args:
+
+        seed (int): random seed
+        **overrides: parameter values to override, e.g. sigma_psi=0.0
+
+    Returns:
+
+        model (IncomeModelClass): the simulated model
+
+    """
+
+    model = IncomeModelClass(seed=seed)
+    for key, val in overrides.items():
+        setattr(model, key, val)
+    model.simulate()
+
+    return model
+
 # Task 2.3
+
+def lorenz_curve(x):
+    """ calculate the Lorenz curve
+
+    Args:
+
+        x (ndarray): vector of incomes
+
+    Returns:
+
+        pop_share (ndarray): cumulative share of the population, from 0 to 1
+        income_share (ndarray): cumulative share of total income, from 0 to 1
+
+    """
+
+    #sort incomes
+    x = np.sort(x)
+    N = len(x)
+
+    #cumulative share of population
+    pop_share = np.concatenate(([0.0], np.arange(1, N+1)/N))
+
+    #cumulative share of income
+    income_share = np.concatenate(([0.0], np.cumsum(x)/np.sum(x)))
+
+    return pop_share, income_share
 
 def gini(x):
     """ calculate the Gini coefficient
