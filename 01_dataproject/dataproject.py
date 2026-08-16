@@ -64,6 +64,10 @@ class IncomeModelClass:
         self.y_SU = 0.45
         self.rho = 0.60
         self.y_floor = 0.35
+
+        #health/displacement risk (Task 2.5 extension, off by default)
+        self.p_shock = 0.0     # probability of a permanent negative human capital shock each period
+        self.shock_size = 0.50 # human capital multiplier if a shock hits
     
     def simulate(self):
         "simulation of the model"
@@ -158,6 +162,17 @@ class IncomeModelClass:
                             * (1 - self.delta)
                             * psi
                         )
+                        #additional idiosyncratic risk: a permanent negative shock to
+                    #human capital (e.g. disability, displacement), independent of
+                    #employment status (Task 2.5 extension). Guarded so that with the
+                    #default p_shock=0.0 no random draw happens and all earlier results
+                    #(2.2-2.4) stay exactly reproducible.
+                    if self.p_shock > 0 and rng.random() < self.p_shock:
+                        self.human_capital[i,t] *= self.shock_size
+                        
+
+
+                    
 
         #income setup
         self.income = np.empty((self.N,T))
