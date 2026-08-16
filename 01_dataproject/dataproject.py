@@ -194,6 +194,32 @@ class IncomeModelClass:
 
 # Task 2.3
 
+def lorenz_curve(x):
+    """ calculate the Lorenz curve
+
+    Args:
+
+        x (ndarray): vector of incomes
+
+    Returns:
+
+        pop_share (ndarray): cumulative share of the population, from 0 to 1
+        income_share (ndarray): cumulative share of total income, from 0 to 1
+
+    """
+
+    #sort incomes
+    x = np.sort(x)
+    N = len(x)
+
+    #cumulative share of population
+    pop_share = np.concatenate(([0.0], np.arange(1, N+1)/N))
+
+    #cumulative share of income
+    income_share = np.concatenate(([0.0], np.cumsum(x)/np.sum(x)))
+
+    return pop_share, income_share
+
 def gini(x):
     """ calculate the Gini coefficient
 
