@@ -131,11 +131,14 @@ class ConsumerClass:
 
         """
 
+        
+
         par = self.par
-
-        pass
-
+        xB = self.ces(x2,x3,par.beta,par.sigma_B)
+        u = self.ces(x1,xB,par.alpha,par.sigma_A)
         return u
+
+        
 
     ###############################
     # 2. the nested budget shares #
@@ -191,8 +194,10 @@ class ConsumerClass:
 
         """
 
-        pass
+        
 
+        x1,x2,x3 = self.quantities(s1,w)
+        u = self.utility(x1,x2,x3)
         return u
 
     def objective(self,s):
@@ -236,20 +241,37 @@ class ConsumerClass:
         par = self.par
         opt = SimpleNamespace()
 
+        par = self.par
+        opt = SimpleNamespace()
+
         # a. the two grids
-        pass
+        s1_vec = np.linspace(0,1,N)
+        w_vec = np.linspace(0,1,N)
+        s1_grid,w_grid = np.meshgrid(s1_vec,w_vec,indexing='ij')
 
         # b. utility in every grid point
-        pass
+        u_grid = self.value_of_choice(s1_grid,w_grid)
 
         # c. the best point
-        pass
+        i,j = np.unravel_index(np.argmax(u_grid),u_grid.shape)
 
         # d. results
-        # opt.s1, opt.w, opt.s2, opt.s3, opt.u
-        # opt.s1_grid, opt.w_grid, opt.u_grid (needed for the figures)
+        opt.s1 = s1_grid[i,j]
+        opt.w = w_grid[i,j]
+        opt.s1,opt.s2,opt.s3 = self.shares(opt.s1,opt.w)
+        opt.u = u_grid[i,j]
+
+        opt.s1_grid = s1_grid
+        opt.w_grid = w_grid
+        opt.u_grid = u_grid
+
+        if do_print:
+            print(f'grid search (N={N}): s1 = {opt.s1:.4f}, s2 = {opt.s2:.4f}, s3 = {opt.s3:.4f}, u = {opt.u:.4f}')
 
         return opt
+
+
+    
 
     def solve(self,s0=None,do_print=True,**kwargs):
         """ solve with L-BFGS-B
@@ -278,10 +300,22 @@ class ConsumerClass:
         # b. record the path with a callback
         path = [s0.copy()]
 
-        # c. minimize
-        pass
+# c. minimize
+        res = optimize.minimize(self.objective,s0,method='L-BFGS-B',
+                                 bounds=((0,1),(0,1)),
+                                 callback=lambda sk: path.append(sk.copy()),
+                                 **kwargs)
 
         # d. results
-        # opt.s1, opt.w, opt.s2, opt.s3, opt.u, opt.path, opt.res
+        opt.s1 = res.x[0]
+        opt.w = res.x[1]
+        opt.s1,opt.s2,opt.s3 = self.shares(opt.s1,opt.w)
+        opt.u = -res.fun
+        opt.path = np.array(path)
+        opt.res = res
+
+        if do_print:
+            print(f'L-BFGS-B: s1 = {opt.s1:.4f}, s2 = {opt.s2:.4f}, s3 = {opt.s3:.4f}, u = {opt.u:.4f}, ' +
+                  f'nfev = {res.nfev}, success = {res.success}')
 
         return opt
