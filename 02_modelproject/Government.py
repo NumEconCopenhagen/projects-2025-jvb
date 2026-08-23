@@ -180,6 +180,90 @@ class GovernmentClass(ConsumerClass):
 
         return R,u
 
+    def revenue_and_utility_recycled(self,tau,goods=(3,),phi=0.5):
+        """ revenue and utility when part of product-tax revenue is recycled
+
+        The government returns a fraction ``phi`` of product-tax revenue as a
+        lump-sum transfer. The transfer is found so the budget constraint
+        ``B = phi*R_product`` holds.
+
+        Args:
+
+            tau (float): the common product-tax rate
+            goods (tuple): which goods are taxed
+            phi (float): fraction of product-tax revenue returned
+
+        Returns:
+
+            (tuple): net revenue, utility and the transfer
+
+        """
+
+        assert 0 <= phi <= 1, 'phi must be between 0 and 1'
+
+        # set the product tax rates
+        taus = {f'tau{j}': (tau if j in goods else 0.0) for j in (1,2,3)}
+
+        # no transfer is needed when there is no recycling
+        if phi == 0 or tau == 0:
+            self.set_taxes(T=0.0,**taus)
+            opt = self.solve(do_print=False)
+            R = self.tax_revenue(opt)
+            return R,opt.u,0.0
+
+        par = self.par
+
+        # solve for the transfer that balances the recycling rule
+        def budget_balance(B):
+            self.set_taxes(T=-B,**taus)
+            opt = self.solve(do_print=False)
+            R_net = self.tax_revenue(opt)
+            R_product = R_net+B
+            return B-phi*R_product
+
+        res = optimize.root_scalar(budget_balance,
+                                   bracket=(0,100*par.I_pre),
+                                   method='brentq')
+        B = res.root
+
+        # calculate net revenue and utility at the solution
+        self.set_taxes(T=-B,**taus)
+        opt = self.solve(do_print=False)
+        R = self.tax_revenue(opt)
+        u = opt.u
+
+        return R,u,B
+
+    def find_tax_rate_recycled(self,R_target,goods=(3,),phi=0.5,bracket=(1e-10,1.0)):
+        """ find a product-tax rate that raises a target net revenue
+
+        Args:
+
+            R_target (float): the required net revenue
+            goods (tuple): which goods are taxed
+            phi (float): fraction of product-tax revenue returned
+            bracket (tuple): interval of tax rates to search in
+
+        Returns:
+
+            (float): the tax rate, or np.nan if the target cannot be reached
+
+        """
+
+        # define the revenue requirement as a root-finding problem
+        def f(tau):
+            R,_,_ = self.revenue_and_utility_recycled(tau,goods,phi)
+            return R-R_target
+
+        # find the tax rate, if the target can be reached in the bracket
+        try:
+            res = optimize.root_scalar(f,bracket=bracket,method='brentq')
+            tau = res.root
+        except ValueError:
+            tau = np.nan
+
+        return tau
+
     ##########################################
     # 3. hitting a given revenue requirement #
     ##########################################
