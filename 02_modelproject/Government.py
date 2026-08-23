@@ -127,9 +127,10 @@ class GovernmentClass(ConsumerClass):
         #    .quantities() takes the nested shares (s1,w) from the solution
         if opt is None: opt = self.solve(do_print=False)
 
-        pass
+        x1,x2,x3 = self.quantities(opt.s1,opt.w)
 
         # b. the lump-sum tax, plus the product tax on each good
+        R = par.T + par.tau1*par.p1_pre*x1 + par.tau2*par.p2_pre*x2 + par.tau3*par.p3_pre*x3
 
         return R
 
@@ -147,7 +148,14 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        # a. the same rate on each good in goods, and zero on the rest
+        taus = {f'tau{j}': (tau if j in goods else 0.0) for j in (1,2,3)}
+        self.set_taxes(T=0.0,**taus)
+
+        # b. solve and evaluate
+        opt = self.solve(do_print=False)
+        R = self.tax_revenue(opt)
+        u = opt.u
 
         return R,u
 
@@ -164,7 +172,11 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        self.set_taxes(T=T)
+
+        opt = self.solve(do_print=False)
+        R = self.tax_revenue(opt)
+        u = opt.u
 
         return R,u
 
@@ -193,7 +205,13 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        # a. a grid over the tax rate
+        tau_vec = np.linspace(0,tau_max,N)
+        R_vec = np.array([self.revenue_and_utility(t,goods)[0] for t in tau_vec])
+
+        # b. the best point
+        i = np.argmax(R_vec)
+        tau,R = tau_vec[i],R_vec[i]
 
         return tau,R
 
@@ -219,6 +237,13 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        # a. revenue minus the target
+        obj = lambda t: self.revenue_and_utility(t,goods)[0] - R_target
+
+        # b. no sign change in the bracket means the target cannot be reached
+        try:
+            tau = optimize.root_scalar(obj,bracket=bracket,method='brentq').root
+        except ValueError:
+            tau = np.nan
 
         return tau
