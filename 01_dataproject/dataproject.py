@@ -1,39 +1,11 @@
 import numpy as np
 
-#Task 1
-
-def load_data():
-    """
-    load data function
-    """
-
-    #allocation of data container
-    data = {}
-
-    #fill
-    data['GDP'] = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-
-    return data
-
-
-def process_data(data):
-    """
-    process data function
-    """
-
-    #verify data
-    assert 'GDP' in data, "Data must contain 'GDP' key"
-
-    #take log
-    for k in ['GDP']:
-        v = data[k]
-        data[f'log_{k}'] = np.log(v)
-
-    return data
-
-# Task 2
-
 # Task 2.1-2.2
+
+#employment status codes
+IN_EDUCATION = 0
+UNEMPLOYED = 1
+EMPLOYED = 2
 
 class IncomeModelClass:
     """ Life-cycle income model used in Task 2. """
@@ -65,7 +37,9 @@ class IncomeModelClass:
         self.rho = 0.60
         self.y_floor = 0.35
 
-        #health/displacement risk (Task 2.5 extension, off by default)
+        #health/displacement risk (Task 2.5 extension, off by default).
+        #p_shock can be a single number (the same probability every period)
+        #or an array with one value per age (an age-varying probability).
         self.p_shock = 0.0     # probability of a permanent negative human capital shock each period
         self.shock_size = 0.50 # human capital multiplier if a shock hits
     
@@ -97,30 +71,30 @@ class IncomeModelClass:
 
             for t,age in enumerate(self.ages):
 
-                #in education or just entered labor market
+                #in education
                 if age <= self.age_entry[i]:
-                    self.employed[i,t] = 0
+                    self.employed[i,t] = IN_EDUCATION
 
                 #already on labor market
                 else:
 
                     draw = rng.random()
 
-                    #unemployed last year
-                    if self.employed[i,t-1] == 0:
+                    #not employed last period (in education or unemployed)
+                    if self.employed[i,t-1] != EMPLOYED:
 
                         if draw < self.lam:
-                            self.employed[i,t] = 1
+                            self.employed[i,t] = EMPLOYED
                         else:
-                            self.employed[i,t] = 0
+                            self.employed[i,t] = UNEMPLOYED
 
-                    #employed last year
+                    #employed last period
                     else:
 
                         if draw < self.sigma:
-                            self.employed[i,t] = 0
+                            self.employed[i,t] = UNEMPLOYED
                         else:
-                            self.employed[i,t] = 1
+                            self.employed[i,t] = EMPLOYED
 
         #setup of human capital
         self.human_capital = np.empty((self.N,T))
@@ -146,7 +120,7 @@ class IncomeModelClass:
                     )
 
                     #employed last year
-                    if self.employed[i,t-1] == 1:
+                    if self.employed[i,t-1] == EMPLOYED:
 
                         self.human_capital[i,t] = (
                             self.human_capital[i,t-1]
@@ -162,17 +136,16 @@ class IncomeModelClass:
                             * (1 - self.delta)
                             * psi
                         )
-                        #additional idiosyncratic risk: a permanent negative shock to
+
+                    #additional idiosyncratic risk: a permanent negative shock to
                     #human capital (e.g. disability, displacement), independent of
-                    #employment status (Task 2.5 extension). Guarded so that with the
-                    #default p_shock=0.0 no random draw happens and all earlier results
-                    #(2.2-2.4) stay exactly reproducible.
-                    if self.p_shock > 0 and rng.random() < self.p_shock:
+                    #employment status (Task 2.5 extension). p_shock can vary by age;
+                    #guarded so that with the default p_shock=0.0 no random draw
+                    #happens and all earlier results (2.2-2.4) stay exactly reproducible.
+                    p_shock_t = self.p_shock[t] if np.ndim(self.p_shock) > 0 else self.p_shock
+                    if p_shock_t > 0 and rng.random() < p_shock_t:
                         self.human_capital[i,t] *= self.shock_size
-                        
 
-
-                    
 
         #income setup
         self.income = np.empty((self.N,T))
@@ -191,7 +164,7 @@ class IncomeModelClass:
                             self.income[i,t] = self.y_SU
 
                         #employed
-                        elif self.employed[i,t] == 1:
+                        elif self.employed[i,t] == EMPLOYED:
 
                             self.income[i,t] = self.human_capital[i,t]
 
