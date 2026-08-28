@@ -136,7 +136,14 @@ class SolowModelClass:
 
     # the savings path s_t = s_bar + (s0-s_bar)*phi**t
     def s_path(self,s0,phi):
-        raise NotImplementedError
+        """ time-varying savings rate, s_t = s_bar + (s0-s_bar)*phi**t """
+
+        par = self.par
+
+        t = np.arange(par.T)
+        s = par.s_bar + (s0-par.s_bar)*phi**t
+
+        return s
 
     # the discounted sum of log(c_t)
     def welfare(self,c):
