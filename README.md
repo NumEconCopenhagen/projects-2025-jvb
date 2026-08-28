@@ -1,9 +1,9 @@
-# [Group name]
+# jvb
 
 **Group members:**
-- A
-- Villads Nolsøe (zjv715)
-- C
+- Johan Ditlev Gram 
+- Villads Andreas Villaro Nolsøe
+- Benjamin Perotti
 
 **This repository contains:***
 
