@@ -77,14 +77,109 @@ class PortfolioModelClass:
 
         return W**(1-par.gamma)/(1-par.gamma)
 
-    # the share of wealth in the risky asset after trading, and the amount traded
     def trade(self,theta):
-        raise NotImplementedError
+        """ the share of wealth in the risky asset after trading, and the amount traded
 
-    # simulate all N portfolios forward T periods
+        Args:
+
+            theta (ndarray): share of wealth in the risky asset before trading
+
+        Returns:
+
+            theta_post (ndarray): share of wealth in the risky asset after trading
+            traded (ndarray): amount traded as a share of wealth
+
+        """
+
+        par = self.par
+
+        # a. the no-trade band is left
+        outside = np.abs(theta-par.theta_star) > par.Delta
+
+        # b. trade all the way back to the target, or do nothing
+        theta_post = np.where(outside,par.theta_star,theta)
+
+        # c. the amount traded
+        traded = np.abs(theta_post-theta)
+
+        return theta_post,traded
+
     def simulate(self,R=None):
-        raise NotImplementedError
+        """ simulate all N portfolios forward T periods
 
-    # the numbers to report for a rule, including expected utility
+        Args:
+
+            R (ndarray,optional): gross returns with shape (N,T), drawn if None
+
+        Returns:
+
+            (SimpleNamespace): the simulated paths, also stored in self.sim
+
+        """
+
+        par = self.par
+        sim = self.sim
+
+        if R is None: R = self.draw_returns()
+        assert R.shape == (par.N,par.T), f'the returns must have shape {(par.N,par.T)}, but have {R.shape}'
+
+        # a. the safe gross return
+        Rf = np.exp(par.r)
+
+        # b. allocate memory
+        W = np.empty((par.N,par.T+1)) # wealth before trading
+        theta = np.empty((par.N,par.T+1)) # share in the risky asset before trading
+        traded = np.empty((par.N,par.T)) # amount traded
+
+        # c. the investor starts at the target
+        W[:,0] = par.W0
+        theta[:,0] = par.theta_star
+
+        # d. loop over time, vectorized over portfolios
+        for t in range(par.T):
+
+            # i. trade back to the target if the band is left
+            theta_post,traded[:,t] = self.trade(theta[:,t])
+
+            # ii. pay the transaction cost
+            W_post = W[:,t]*(1-par.tau*traded[:,t])
+
+            # iii. realize the returns
+            W[:,t+1] = theta_post*W_post*R[:,t] + (1-theta_post)*W_post*Rf
+
+            # iv. the share in the risky asset at the start of the next period
+            theta[:,t+1] = theta_post*W_post*R[:,t]/W[:,t+1]
+
+        # e. store the results
+        sim.R = R
+        sim.W = W
+        sim.theta = theta
+        sim.traded = traded
+
+        return sim
+
     def summary(self):
-        raise NotImplementedError
+        """ the numbers to report for a rule, including expected utility
+
+        Returns:
+
+            (SimpleNamespace): the six numbers, also stored in self.sim
+
+        """
+
+        par = self.par
+        sim = self.sim
+
+        # a. terminal wealth
+        W_T = sim.W[:,-1]
+
+        # b. the six numbers
+        res = sim.res = SimpleNamespace()
+        res.trades = np.mean(np.sum(sim.traded > 0,axis=1))
+        res.distance = np.mean(np.abs(sim.theta[:,:par.T]-par.theta_star))
+        res.mean = np.mean(W_T)
+        res.median = np.median(W_T)
+        res.p10 = np.percentile(W_T,10)
+        res.utility = np.mean(self.u(W_T))
+
+        return res
